@@ -27,6 +27,7 @@
 # MAGIC |---|---|---|---|
 # MAGIC | A | `DRY_RUN` | dropdown (`true`) | `true` = checks and plan only; `false` = publish |
 # MAGIC | B | `ALLOW_STALE` | dropdown (`false`) | `true` = publish even if the data is more than 3 days old |
+# MAGIC | C | `BYPASS_FALSE_POSITIVE` | dropdown (`false`) | `true` = if GitHub secret scanning blocks a file, record a push-protection bypass with reason "false positive" and retry. Use only for the public Mapbox token in `config.js`, after checking in Mapbox that it is public. Needed once; later runs upload only files that changed, so `config.js` is not sent again |
 # MAGIC
 # MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-12*
 
@@ -34,13 +35,16 @@
 
 dbutils.widgets.dropdown("DRY_RUN", "true", ["true", "false"], "A. Dry run (true = checks and plan only)")
 dbutils.widgets.dropdown("ALLOW_STALE", "false", ["false", "true"], "B. Publish even if data is older than 3 days")
+dbutils.widgets.dropdown("BYPASS_FALSE_POSITIVE", "false", ["false", "true"], "C. Bypass secret-scan block as false positive")
 DRY_RUN = dbutils.widgets.get("DRY_RUN").strip().lower() == "true"
 ALLOW_STALE = dbutils.widgets.get("ALLOW_STALE").strip().lower() == "true"
+BYPASS_FALSE_POSITIVE = dbutils.widgets.get("BYPASS_FALSE_POSITIVE").strip().lower() == "true"
 print("DRY RUN (nothing will be published)" if DRY_RUN else "LIVE: will publish to gh-pages")
 
 # COMMAND ----------
 
 import base64
+import hashlib
 import re
 import sys
 from datetime import date, datetime, timezone
@@ -66,9 +70,14 @@ _headers = {"Authorization": f"Bearer {_token}", "Accept": "application/vnd.gith
             "User-Agent": "idm-eth-publish", "X-GitHub-Api-Version": "2022-11-28"}
 
 
+last_headers = {}
+
+
 def gh(method, path, **kw):
     """Call the GitHub API. Returns (status, json_or_None). The token is never printed."""
+    global last_headers
     r = requests.request(method, API + path, headers=_headers, timeout=120, **kw)
+    last_headers = r.headers
     try:
         body = r.json()
     except ValueError:
@@ -141,6 +150,15 @@ branch_exists = code == 200
 print(f"{BRANCH}:", "exists" if branch_exists else "does not exist yet (will be created)")
 site_url = f"https://{repo['owner']['login'].lower()}.github.io/{repo['name']}/"
 
+# Write probe: one empty blob (attached to no branch, never published). A refusal means the token cannot write.
+code, probe = gh("POST", f"/repos/{REPO}/git/blobs", json={"content": "", "encoding": "utf-8"})
+print("write probe (empty blob): status", code, "| permission GitHub says this needs:", last_headers.get("x-accepted-github-permissions") or "not reported")
+print("token expiry:", last_headers.get("github-authentication-token-expiration") or "not reported")
+if code == 403:
+    raise RuntimeError("The token cannot write to the repo. Give it Contents: Read and write on this repo (resource owner = the organization). "
+                       "If the organization requires approval, ask an owner to approve the token. "
+                       f"GitHub says: {(probe or {}).get('message')}")
+
 if DRY_RUN:
     print("\n[DRY RUN] All checks passed. Would publish", len(files), "files to", f"{REPO}@{BRANCH}", "as one commit.")
     print("Site address once Pages is on:", site_url)
@@ -154,16 +172,42 @@ if DRY_RUN:
 
 result = "dry run: nothing published"
 if not DRY_RUN:
-    # 1) one blob per file
+    # 0) what is already published (path -> blob sha), so unchanged files are not uploaded again
+    published = {}
+    if branch_exists:
+        code, cur0 = gh("GET", f"/repos/{REPO}/git/commits/{ref['object']['sha']}")
+        if code == 200:
+            code, t0 = gh("GET", f"/repos/{REPO}/git/trees/{cur0['tree']['sha']}?recursive=1")
+            if code == 200:
+                published = {e["path"]: e["sha"] for e in t0["tree"] if e["type"] == "blob"}
+    # 1) one blob per changed file
     entries = []
+    uploaded = reused = 0
     for rel, p in files.items():
-        content = base64.b64encode(p.read_bytes()).decode("ascii")
+        data = p.read_bytes()
+        git_sha = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+        if published.get(rel) == git_sha:
+            entries.append({"path": rel, "mode": "100644", "type": "blob", "sha": git_sha})
+            reused += 1
+            continue
+        content = base64.b64encode(data).decode("ascii")
         code, blob = gh("POST", f"/repos/{REPO}/git/blobs", json={"content": content, "encoding": "base64"})
+        if code == 422 and BYPASS_FALSE_POSITIVE:
+            placeholders = (((blob or {}).get("metadata") or {}).get("secret_scanning") or {}).get("bypass_placeholders") or []
+            for ph in placeholders:
+                bcode, bres = gh("POST", f"/repos/{REPO}/secret-scanning/push-protection-bypasses",
+                                 json={"reason": "false_positive", "placeholder_id": ph["placeholder_id"]})
+                print(f"  {rel}: requested push-protection bypass for {ph.get('token_type')} (status {bcode})")
+                if bcode not in (200, 201):
+                    raise RuntimeError(f"Bypass request failed (status {bcode}): {str(bres)[:400]}")
+            if placeholders:
+                code, blob = gh("POST", f"/repos/{REPO}/git/blobs", json={"content": content, "encoding": "base64"})
         if code == 409:
             raise RuntimeError("GitHub says the repo is empty. Push one commit to main first (for example the README), then rerun.")
         if code != 201:
-            raise RuntimeError(f"Blob upload failed for {rel} (status {code}): {(blob or {}).get('message')}")
+            raise RuntimeError(f"Blob upload failed for {rel} (status {code}): {(blob or {}).get('message')} | details: {str(blob)[:900]}")
         entries.append({"path": rel, "mode": "100644", "type": "blob", "sha": blob["sha"]})
+        uploaded += 1
 
     # 2) a tree with only these files (no base tree, so anything else is dropped)
     code, tree = gh("POST", f"/repos/{REPO}/git/trees", json={"tree": entries})
@@ -193,7 +237,7 @@ if not DRY_RUN:
             ok = code == 201
         if not ok:
             raise RuntimeError(f"Updating {BRANCH} failed (status {code}): {(upd or {}).get('message')}")
-        result = f"published commit {commit['sha'][:10]} to {REPO}@{BRANCH} ({len(files)} files)"
+        result = f"published commit {commit['sha'][:10]} to {REPO}@{BRANCH} ({len(files)} files: {uploaded} uploaded, {reused} unchanged)"
 print(result)
 
 # COMMAND ----------
