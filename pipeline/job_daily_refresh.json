@@ -1,0 +1,116 @@
+{
+  "name": "Ethiopia woreda climate map: daily refresh",
+  "max_concurrent_runs": 1,
+  "timeout_seconds": 14400,
+  "schedule": {
+    "quartz_cron_expression": "0 30 7 * * ?",
+    "timezone_id": "UTC",
+    "pause_status": "PAUSED"
+  },
+  "email_notifications": {
+    "on_failure": ["REPLACE_WITH_EMAIL"]
+  },
+  "environments": [
+    {
+      "environment_key": "pipeline_env",
+      "spec": {
+        "environment_version": "6",
+        "dependencies": ["requests", "pandas", "numpy", "scipy", "geopandas", "shapely", "rasterio"]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "setup_site",
+      "description": "Copy index.html, app.js, style.css, .nojekyll into the Volume app/ folder.",
+      "environment_key": "pipeline_env",
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/setup_site.py"
+      }
+    },
+    {
+      "task_key": "heat_download",
+      "description": "Re-pull the two latest months of HeatReady daily rows (heat_api.py download final).",
+      "depends_on": [{"task_key": "setup_site"}],
+      "environment_key": "pipeline_env",
+      "max_retries": 1,
+      "min_retry_interval_millis": 600000,
+      "timeout_seconds": 7200,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/heat_api.py",
+        "parameters": ["download", "final"]
+      }
+    },
+    {
+      "task_key": "heat_forecast",
+      "description": "Replace the forecast days (heat_api.py forecast). Runs even if the download failed.",
+      "depends_on": [{"task_key": "heat_download"}],
+      "run_if": "ALL_DONE",
+      "environment_key": "pipeline_env",
+      "max_retries": 1,
+      "min_retry_interval_millis": 600000,
+      "timeout_seconds": 3600,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/heat_api.py",
+        "parameters": ["forecast"]
+      }
+    },
+    {
+      "task_key": "build_map_data",
+      "description": "Aggregate to monthly woreda metrics and write app/data/data.js, geo.js and app/config.js.",
+      "depends_on": [{"task_key": "heat_download"}, {"task_key": "heat_forecast"}],
+      "run_if": "ALL_DONE",
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 3600,
+      "notebook_task": {
+        "notebook_path": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/build_map_data"
+      }
+    },
+    {
+      "task_key": "flood_gauges",
+      "description": "GloFAS discharge and forecast for the 14 gauges -> app/data/flood.js.",
+      "depends_on": [{"task_key": "build_map_data"}],
+      "environment_key": "pipeline_env",
+      "max_retries": 1,
+      "min_retry_interval_millis": 120000,
+      "timeout_seconds": 3600,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/flood_gauges.py",
+        "parameters": ["all"]
+      }
+    },
+    {
+      "task_key": "food_prices",
+      "description": "Re-link markets to the new months (no download) -> app/data/food.js.",
+      "depends_on": [{"task_key": "flood_gauges"}],
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 3600,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/food_prices.py",
+        "parameters": ["build"]
+      }
+    },
+    {
+      "task_key": "rainfall",
+      "description": "New CHIRPS dekads -> app/data/rain.js. Soft: a failure keeps the previous rain.js. Needs app/data/rivers.js (see notes).",
+      "depends_on": [{"task_key": "food_prices"}],
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 10800,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/soft_run.py",
+        "parameters": ["chirps.py", "all"]
+      }
+    },
+    {
+      "task_key": "ethiomet_bulletin",
+      "description": "Latest EthioMet daily bulletin -> app/data/ethiomet.js. Soft: a failure keeps the previous file.",
+      "depends_on": [{"task_key": "food_prices"}],
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 1800,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/soft_run.py",
+        "parameters": ["ethiomet.py"]
+      }
+    }
+  ]
+}

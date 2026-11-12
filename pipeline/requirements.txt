@@ -1,0 +1,9 @@
+# Python packages imported by the pipeline scripts (ethiomet.py uses only the standard library).
+# Versions are not pinned yet: run one successful job, then pin with `pip freeze` for these packages.
+requests
+pandas
+numpy
+scipy
+geopandas
+shapely
+rasterio
