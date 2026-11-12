@@ -28,7 +28,7 @@ Unity Catalog Volume `idm_conflict_and_health.ethiopia_climate.heat_map_files`:
 
 Stage order: `setup_site`, HeatReady download and forecast, `build_map_data`, `flood_gauges`,
 `food_prices`, then `rainfall` and `ethiomet` (the last two only warn on failure).
-The publish step (force-push of `app/` to `gh-pages`) is not built yet.
+Publishing is a separate notebook, `pipeline/publish_pages`: it force-pushes the Volume's `app/` to the `gh-pages` branch as a single commit (run it with `DRY_RUN` true first). `run_daily_refresh` does not publish. In the job, `publish` runs last and only if every earlier stage succeeded. After the first publish, turn on Pages in the repo settings (branch `gh-pages`, folder `/`).
 
 ## Secrets
 

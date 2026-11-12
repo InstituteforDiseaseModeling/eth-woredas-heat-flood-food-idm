@@ -111,6 +111,23 @@
         "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/soft_run.py",
         "parameters": ["ethiomet.py"]
       }
+    },
+    {
+      "task_key": "publish",
+      "description": "Publish app/ to the gh-pages branch of the publish repo (publish_pages notebook). Runs only if every earlier stage succeeded; rainfall and ethiomet only warn, so they never block it.",
+      "depends_on": [
+        {"task_key": "build_map_data"},
+        {"task_key": "flood_gauges"},
+        {"task_key": "food_prices"},
+        {"task_key": "rainfall"},
+        {"task_key": "ethiomet_bulletin"}
+      ],
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 1800,
+      "notebook_task": {
+        "notebook_path": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/publish_pages",
+        "base_parameters": {"DRY_RUN": "false"}
+      }
     }
   ]
 }
