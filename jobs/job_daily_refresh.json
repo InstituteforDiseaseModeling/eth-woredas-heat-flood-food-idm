@@ -125,7 +125,7 @@
       "environment_key": "pipeline_env",
       "timeout_seconds": 1800,
       "notebook_task": {
-        "notebook_path": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/publish_pages",
+        "notebook_path": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/ops/publish_pages",
         "base_parameters": {"DRY_RUN": "false"}
       }
     }

@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # create_or_update_job
 # MAGIC
-# MAGIC Creates the Lakeflow job "Ethiopia woreda climate map: daily refresh" from `pipeline/job_daily_refresh.json`,
+# MAGIC Creates the Lakeflow job "Ethiopia woreda climate map: daily refresh" from `jobs/job_daily_refresh.json`,
 # MAGIC or updates it if a job with that name already exists. The JSON file in the repo is the source of truth: rerun this notebook after the file changes.
 # MAGIC
 # MAGIC It checks the file first (no placeholders left, every notebook and script path exists) and, with `DRY_RUN` true, only prints the plan.
@@ -14,7 +14,7 @@
 # MAGIC
 # MAGIC The job runs `publish_pages` live, so a run of the job publishes the site.
 # MAGIC
-# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-16*
+# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-17*
 
 # COMMAND ----------
 
@@ -32,7 +32,7 @@ from pathlib import Path
 from databricks.sdk import WorkspaceClient
 
 REPO = "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm"
-JOB_JSON = Path(REPO) / "pipeline" / "job_daily_refresh.json"
+JOB_JSON = Path(REPO) / "jobs" / "job_daily_refresh.json"
 
 w = WorkspaceClient()
 text = JOB_JSON.read_text()

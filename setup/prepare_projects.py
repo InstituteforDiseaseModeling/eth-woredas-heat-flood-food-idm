@@ -5,11 +5,14 @@ measured around the full extent of every polygon. Ethiopia's box is ~170 square 
 woredas are split by recursive bisection on centroids until every group's box fits.
 """
 import json
+import sys
 from pathlib import Path
 
 import geopandas as gpd
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))  # config.py lives in pipeline/
 import config
+
 ROOT = Path(__file__).resolve().parent
 SRC = config.SHP
 OUT = config.BUILD / "projects"
