@@ -44,13 +44,22 @@ that GitHub's secret scanner flags; it was allowed once through the one-time web
 ## What refreshes and what does not
 
 Every run refreshes: HeatReady heat and 6-day forecast, GloFAS river discharge and forecast (14 gauges), CHIRPS rainfall,
-the EthioMet bulletin, and the monthly woreda aggregation. Food prices are re-linked to new months on every run, but new World Bank
-prices appear only when the World Bank publishes a new RTFP release.
+the EthioMet bulletin, and the monthly woreda aggregation. Food prices: each run asks the World Bank catalog for the newest RTFP release and downloads it only if it changed
+(`food_prices.py update`); if the catalog cannot be reached, the current release is kept. Markets are then re-linked to the months.
 
 Updated by hand when a new version is adopted: the OCHA admin3 boundaries, LandScan and WorldPop population layers,
 HydroRIVERS/HydroBASINS (`app/data/rivers.js`), and the RP2/RP5 flood thresholds (fitted to 1984-2025 annual peaks).
 `pipeline/prepare_projects.py` is the one-time script that split the woredas into HeatReady projects; it is kept for reference
 and is not part of the daily run.
+
+## Notes on the data
+
+- **Month to date.** The current month is shown as soon as it has data, with a "Month to date" badge and a dashed last chart segment. Means compare with full months; day counts and person-days cover only the days so far. Earlier months need 20 days (`HEAT_MIN_DAYS`).
+- **Food prices.** World Bank RTFP market data. Months without a survey are World Bank estimates (the monthly close), and prices are shown against the national average. If the release does not reach the current month, the markets show the latest month with prices, labelled "(latest prices)".
+- **Rainfall.** CHIRPS v3 dekads; the final product runs 4 to 6 weeks behind, so recent dekads are preliminary and shown lighter.
+- **EthioMet.** The newest bulletin is chosen by the date in its title and shown as published; it is not joined to woredas.
+
+These features follow Andrew Schroeder's repo as of 2026-11-17; his README has the full methods and caveats.
 
 ## Upkeep
 

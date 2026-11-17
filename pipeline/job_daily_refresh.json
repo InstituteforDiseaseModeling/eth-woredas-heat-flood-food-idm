@@ -81,13 +81,13 @@
     },
     {
       "task_key": "food_prices",
-      "description": "Re-link markets to the new months (no download) -> app/data/food.js.",
+      "description": "Download the newest World Bank RTFP release if there is one, then re-link markets to the months -> app/data/food.js.",
       "depends_on": [{"task_key": "flood_gauges"}],
       "environment_key": "pipeline_env",
       "timeout_seconds": 3600,
       "spark_python_task": {
         "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/food_prices.py",
-        "parameters": ["build"]
+        "parameters": ["update"]
       }
     },
     {

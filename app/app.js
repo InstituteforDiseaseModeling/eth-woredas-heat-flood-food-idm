@@ -55,6 +55,11 @@
   const monthIdx = new Map(months.map((m, t) => [m, t]));
   const PRE0 = RN ? (RN.prelim.indexOf(true) < 0 ? dekads.length : RN.prelim.indexOf(true)) : 0;   // first preliminary dekad
   const isPre = (j) => j >= PRE0;
+  // The current month is shown as "month to date" (D.partial): means compare, day counts are so far.
+  const PART = D.partial || null;
+  const partT = PART ? months.indexOf(PART.month) : -1;
+  const partNote = PART ? `${PART.days} of ${PART.of} days so far` : '';
+  const monthLong = (t) => monthName(months[t]) + (t === partT ? ` (${partNote})` : '');
   const RAIN_KEYS = [];
   if (RN && dekads.length) {
     const span = `${dekName(dekads[0], true)} – ${dekName(dekads[dekads.length - 1], true)}`;
@@ -168,7 +173,7 @@
   }
   function periodOf(key) {
     const s = M[key];
-    if (s.temporal) return monthName(months[state.t]);
+    if (s.temporal) return monthLong(state.t);
     if (s.daily) return dayName(days[state.d]) + (isFcDay(state.d) ? ' (forecast)' : '');
     if (s.dekadal) return dekName(dekads[state.k], true);
     if (isFcSummary(key)) return `forecast ${FC_SPAN}`;
@@ -352,7 +357,7 @@
   daySlider.addEventListener('input', () => setDay(+daySlider.value));
 
   $('coverage').textContent =
-    `${n.toLocaleString('en')} woredas · monthly, ${monthName(months[0])} – ${monthName(months[months.length - 1])}` +
+    `${n.toLocaleString('en')} woredas · monthly, ${monthName(months[0])} – ${monthName(months[months.length - 1])}${PART ? ' (to date)' : ''}` +
     ` · daily data ${D.first_date} to ${D.last_date}` +
     (hasFc ? ` · forecast to ${dayName(days[days.length - 1])}` : '') +
     (dekads.length ? ` · rainfall by dekad to ${dekName(dekads[dekads.length - 1], true)}` : '');
@@ -433,6 +438,8 @@
     state.t = t;
     slider.value = t;
     $('monthLabel').textContent = monthName(months[t]);
+    const pb = $('partBadge');
+    if (pb) { pb.hidden = t !== partT; pb.textContent = 'Month to date'; pb.title = `${partNote}: means are comparable with full months; day counts and person-days are so far`; }
     const badge = $('ensoBadge');
     badge.hidden = !D.enso.elnino[t];
     badge.textContent = D.enso.provisional[t] ? 'El Niño (provisional)' : 'El Niño';
@@ -783,9 +790,9 @@
       }
       return d;
     };
-    // observed part solid; forecast part dashed, joined to the last observed day
+    // observed part solid; forecast / preliminary / month-to-date part dashed, joined to the last full point
     const line = (arr, c) => {
-      const split = daily && hasFc ? DY.fc_start : dek && PRE0 < N ? PRE0 : N;
+      const split = daily ? (hasFc ? DY.fc_start : N) : dek ? (PRE0 < N ? PRE0 : N) : partT >= 0 ? partT : N;
       let out = `<path d="${path(arr, 0, split - 1)}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
       if (split < N) out += `<path d="${path(arr, Math.max(0, split - 1), N - 1)}" fill="none" stroke="${c}" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>`;
       return out;
@@ -815,7 +822,7 @@
         head = `<b>${dekName(dekads[t], true)}</b>${ensoAt(t) ? ' · <b>El Niño</b>' : ''}${isPre(t) ? ' <span class="m">· preliminary</span>' : ''}`;
       } else {
         const prov = D.provisional_share[t] > 0.5 ? '<br><span class="m">Mostly Open-Meteo (provisional)</span>' : '';
-        head = `<b>${monthName(months[t])}</b>${D.enso.elnino[t] ? ' · <b>El Niño</b>' : ''}` +
+        head = `<b>${monthName(months[t])}</b>${t === partT ? ` <span class="m">· month to date, ${partNote}</span>` : ''}${D.enso.elnino[t] ? ' · <b>El Niño</b>' : ''}` +
           (D.enso.oni[t] !== null ? ` <span class="m">ONI ${D.enso.oni[t] > 0 ? '+' : ''}${D.enso.oni[t]}</span>` : '') + prov;
       }
       chartTip.innerHTML = head +
@@ -1544,6 +1551,13 @@
     return p[k] === null || !p[k - 1] ? null : 100 * (p[k] / p[k - 1] - 1);   // mom
   }
   const fpAt = (i, t, meas, com) => fpVal(i, fp.fm.get(months[t]), meas, com);   // t = map month index
+  // Month the market symbols show: the map month, or the latest earlier month with prices when the
+  // World Bank release doesn't reach it yet (e.g. the month-to-date heat month).
+  const fpT = () => {
+    for (let t = state.t; t >= 0; t--) if (fp.mk.some((m, k) => fpAt(k, t) !== null)) return t;
+    return state.t;
+  };
+  const fpMonthLbl = () => { const t = fpT(); return monthName(months[t]) + (t !== state.t ? ' (latest prices)' : ''); };
   const natAt = (t, meas = fp.meas, com = fp.com) => {
     const k = fp.fm.get(months[t]); if (k === undefined) return null;
     const nat = FP.national[com];
@@ -1592,10 +1606,11 @@
   }
   function paintMarkets() {
     if (!fp) return;
-    if (map.getSource('m')) fp.mk.forEach((m, k) => map.setFeatureState({ source: 'm', id: k }, { c: fpBin(fpAt(k, state.t)), on: k === fp.mi }));
+    const ft = fpT();
+    if (map.getSource('m')) fp.mk.forEach((m, k) => map.setFeatureState({ source: 'm', id: k }, { c: fpBin(fpAt(k, ft)), on: k === fp.mi }));
     const ms = FP_MEAS[fp.meas], b = ms.breaks;
     const com = FP.commodities.find((c) => c.key === fp.com).label;
-    $('marketLegend').innerHTML = `<div class="gPeriod">${esc(com)} · ${esc(ms.label.toLowerCase())} · ${monthName(months[state.t])}</div>` +
+    $('marketLegend').innerHTML = `<div class="gPeriod">${esc(com)} · ${esc(ms.label.toLowerCase())} · ${fpMonthLbl()}</div>` +
       `<div class="legBar">${DIVERGING.map((c) => `<span style="background:${c}"></span>`).join('')}</div>` +
       `<div class="legTicks"><span></span>${b.map((x) => `<span>${x > 0 && fp.meas !== 'yoy' ? '+' : ''}${x}</span>`).join('')}<span></span></div>` +
       `<div class="legNo"><i></i>No price · units: ${ms.unit}</div>`;
@@ -1813,7 +1828,7 @@
     map.on('mousemove', 'm-pt', (e) => {
       const k = e.features[0].id, m = fp.mk[k], com = FP.commodities.find((c) => c.key === fp.com);
       tip.innerHTML = `<b>${esc(m.name)}</b> <span class="m">market · ${esc(m.adm1)}</span><br>` +
-        `${esc(com.label)}, ${esc(FP_MEAS[fp.meas].label.toLowerCase())}: <b>${fpFmt(fpAt(k, state.t), FP_MEAS[fp.meas].unit)}</b> <span class="m">· ${monthName(months[state.t])}</span>` +
+        `${esc(com.label)}, ${esc(FP_MEAS[fp.meas].label.toLowerCase())}: <b>${fpFmt(fpAt(k, fpT()), FP_MEAS[fp.meas].unit)}</b> <span class="m">· ${fpMonthLbl()}</span>` +
         `<br>${M[fp.heat].label}: <b>${withUnit(heatAt(k, state.t), fp.heat)}</b>` +
         (m.gauge !== null && F ? `<br>Gauge: ${esc(F.stations[m.gauge].label)} (${m.gauge_km} km)` : '') +
         '<br><span class="m">Click for its price, heat and flood series</span>';
@@ -1824,7 +1839,9 @@
     });
     map.on('mouseleave', 'm-pt', () => { tip.hidden = true; map.getCanvas().style.cursor = ''; });
     map.on('click', 'm-pt', (e) => { setMarket(e.features[0].id); $('foodWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
-    $('foodSrc').textContent = `${FP.source}, release ${FP.release || '—'}. Months without a survey price are modelled by the World Bank (no dot on the line).`;
+    const fpRel = ((FP.release || '').match(/\d{4}-\d{2}-\d{2}/) || [FP.release || '—'])[0];
+    if ($('fpRel')) $('fpRel').textContent = fpRel;
+    $('foodSrc').textContent = `${FP.source}, release ${fpRel}. Months without a survey price are modelled by the World Bank (no dot on the line).`;
     const addis = fp.mk.findIndex((m) => m.name === 'Gode');
     fp.mi = addis >= 0 ? addis : 0;
     ms.value = String(fp.mi);

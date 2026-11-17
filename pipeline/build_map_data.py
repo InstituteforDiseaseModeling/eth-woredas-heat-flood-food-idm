@@ -12,9 +12,9 @@
 # MAGIC
 # MAGIC **How to run:** Run all. No widgets. The last lines printed give the number of months, the date range and the metrics built.
 # MAGIC
-# MAGIC **Settings (environment variables, optional):** `HEAT_RAW` (folder of daily rows, default `build/raw`) and `HEAT_MIN_DAYS` (a trailing partial month with fewer days than this is left off the map, default 20).
+# MAGIC **Settings (environment variables, optional):** `HEAT_RAW` (folder of daily rows, default `build/raw`) and `HEAT_MIN_DAYS` (a month with fewer days than this counts as a full month only once it has this many days; the current month is shown earlier as "month to date", default 20).
 # MAGIC
-# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-12*
+# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-16*
 
 # COMMAND ----------
 
@@ -44,7 +44,7 @@ FCST = config.BUILD / "forecast"
 RECENT_DAYS = 21  # observed days shown before the forecast in the daily chart
 APP = config.APP
 SHP = config.SHP
-MIN_DAYS_IN_MONTH = int(os.environ.get("HEAT_MIN_DAYS", 20))  # a trailing partial month with fewer days is left off the map
+MIN_DAYS_IN_MONTH = int(os.environ.get("HEAT_MIN_DAYS", 20))  # full-month threshold; the current month is added as "month to date"
 
 print("Shapefile:", SHP)
 print("App folder:", APP)
@@ -197,6 +197,13 @@ def main():
     m = monthly(df)
     counts = m.groupby("month")["n_days"].median()
     months = sorted(mo for mo, n in counts.items() if n >= MIN_DAYS_IN_MONTH)
+    # The current month goes on the map as "month to date" (flagged partial) instead of waiting for
+    # MIN_DAYS_IN_MONTH days: means are comparable, day counts and exposure are only so far.
+    partial = None
+    last = max(counts.index)
+    if last not in months and (not months or last > months[-1]):
+        months.append(last)
+        partial = {"month": str(last), "days": int(counts[last]), "of": int(pd.Period(str(last)).days_in_month)}
     pop = df.groupby("name")["population"].first()
 
     vuln = {}
@@ -332,6 +339,7 @@ def main():
         "months": months,
         "enso": enso_months(config.BUILD / "oni.ascii.txt", months),
         "provisional_share": prov,
+        "partial": partial,
         "woredas": [{"pcode": r.adm3_pcode, "name": r.adm3_name, "zone": r.adm2_name, "region": r.adm1_name}
                     for r in g.itertuples()],
         "metrics": metrics,
