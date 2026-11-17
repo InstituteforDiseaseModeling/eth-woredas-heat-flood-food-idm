@@ -11,7 +11,8 @@ Usage:
     python heat_api.py status
 
 Every step is resumable: re-running picks up from what is already on disk or on the server.
-Credentials come from Databricks secrets (config.py; formerly ../heat_api_key.txt) ({"username": ..., "key": ...}).
+Credentials come from the Databricks secrets `heatready_username` and `heatready_key` (see config.py).
+Project ids are `eth-woreda-heat-N` + SUFFIX (default `-idm`); manifest.json still lists Andrew's `-as2026` ids.
 """
 import datetime as dt
 import json

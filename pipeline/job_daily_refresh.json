@@ -8,7 +8,7 @@
     "pause_status": "PAUSED"
   },
   "email_notifications": {
-    "on_failure": ["REPLACE_WITH_EMAIL"]
+    "on_failure": ["jeremy.cooper@gatesfoundation.org"]
   },
   "environments": [
     {
