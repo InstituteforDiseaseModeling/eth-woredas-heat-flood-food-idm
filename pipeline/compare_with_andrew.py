@@ -6,7 +6,11 @@
 # MAGIC %md
 # MAGIC # Compare our map data files with Andrew's (read-only)
 # MAGIC
-# MAGIC **Purpose:** Check that the pipeline running in Databricks reproduces Andrew's output. Compares the files in `app/data/` (ours) with Andrew's copies in `reference/andrew_app_data/` (his 11 November build).
+# MAGIC **Purpose:** Check that the pipeline running in Databricks reproduces Andrew's output. Compares the files in `app/data/` (ours) with Andrew's. By default Andrew's files come from his repo's Git folder (`/Workspace/Users/jeremy.cooper@gatesfoundation.org/eth-woredas-heat-flood-food/app/data`, current as of your last pull); `volume_snapshot` uses the frozen copy in `reference/andrew_app_data/` (his 11 November build).
+# MAGIC
+# MAGIC | Widget | Name | Default | Meaning |
+# MAGIC |---|---|---|---|
+# MAGIC | A | `REFERENCE` | `git_folder` | `git_folder` = Andrew's latest pulled data; `volume_snapshot` = the 11 November copy |
 # MAGIC
 # MAGIC **What it compares:**
 # MAGIC - **Structure** of each file that exists in both places (`data.js`, `geo.js`, `flood.js`, `food.js`, `rain.js`, `ethiomet.js`): the keys and the number of items at each level.
@@ -14,9 +18,9 @@
 # MAGIC
 # MAGIC **Expect:** Differences only in the newest days, the forecast, and files where the source data moved on (flood, food prices, rain, bulletin). Large differences in older months mean something is wrong.
 # MAGIC
-# MAGIC **Changes nothing.** Reads only. No widgets, no secrets.
+# MAGIC **Changes nothing.** Reads only. One widget, no secrets.
 # MAGIC
-# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-12*
+# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-17*
 
 # COMMAND ----------
 
@@ -33,8 +37,13 @@ import numpy as np
 
 import config
 
+dbutils.widgets.dropdown("REFERENCE", "git_folder", ["git_folder", "volume_snapshot"], "A. Compare against")
+REFERENCE = dbutils.widgets.get("REFERENCE")
+
 OURS = config.APP / "data"
-THEIRS = config.BASE / "reference" / "andrew_app_data"
+THEIRS = (Path("/Workspace/Users/jeremy.cooper@gatesfoundation.org/eth-woredas-heat-flood-food/app/data")
+          if REFERENCE == "git_folder" else config.BASE / "reference" / "andrew_app_data")
+print("Comparing against:", THEIRS)
 FILES = ["data.js", "geo.js", "flood.js", "food.js", "rain.js", "ethiomet.js"]
 
 

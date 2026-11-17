@@ -1,27 +1,46 @@
-"""Food prices at Ethiopia's markets for the woreda map, from the World Bank Real-Time Food Prices
-(RTFP) market-level dataset (microdata.worldbank.org catalog 4483).
+# Databricks notebook source
+# MAGIC %md
+# MAGIC # Food prices for the map (World Bank RTFP)
+# MAGIC
+# MAGIC **Purpose:** Add food prices at Ethiopia's markets to the woreda map, from the World Bank Real-Time Food Prices (RTFP) market-level dataset (microdata.worldbank.org catalog 4483). RTFP gives, per market and month, modelled price estimates for each commodity (gap-filled where no survey was taken), the raw survey price where one exists, year-on-year inflation and a food price index. We keep the monthly close (`c_*`) estimates, the raw values as an "observed" flag, and the national "Market Average" series, so the app shows each market's price against the national level. That strips out Ethiopia-wide moves (the 2024 birr float, general inflation) and leaves the local signal to compare with local heat and river flooding.
+# MAGIC
+# MAGIC **Reads:** the World Bank catalog (public), `build/food/` (the downloaded file and `release.txt`), `app/data/data.js` and `app/data/flood.js` (so run `build_map_data` and `flood_gauges` first), and the OCHA admin3 shapefile.
+# MAGIC
+# MAGIC **Writes:** `build/food/` (the downloaded zip, the Ethiopia extract and `release.txt`) and `app/data/food.js`. It also re-stamps the food file URL in `app/index.html`.
+# MAGIC
+# MAGIC **How to run:** Choose `COMMAND` and run all. The last lines print the number of markets, the months covered and how many markets are linked to a flood gauge.
+# MAGIC
+# MAGIC ### Widgets
+# MAGIC
+# MAGIC | Label | Widget | Type (default) | What to enter |
+# MAGIC |---|---|---|---|
+# MAGIC | A | `COMMAND` | dropdown (`update`) | `update` = download the newest RTFP release only if it changed, then build (what the daily job runs); `build` = rebuild `food.js` from the file already downloaded; `download` = fetch the newest release now, without building; `all` = download if no file exists yet, then build |
+# MAGIC
+# MAGIC If the World Bank catalog cannot be reached, `update` keeps the current release and rebuilds from it. Ported from Andrew Schroeder's repo (2026-11-17 version).
+# MAGIC
+# MAGIC *Owner: IDM data management · Last updated: 2026-11-17*
 
-RTFP gives, per market and month, modelled open/high/low/close price estimates for each commodity
-(gap-filled where no survey was taken), the raw survey price where one exists, year-on-year
-inflation, and a combined food price index. We keep the monthly close (c_*) estimates, the raw
-values as an "observed" flag, and the national "Market Average" series, so the app can show
-each market's price relative to the national level: that strips out Ethiopia-wide moves
-(the 2024 birr float, general inflation) and leaves the local signal to compare with local heat
-and river flooding.
+# COMMAND ----------
 
-    python food_prices.py download   # fetch the newest RTFP zip (136 MB) into build/food/ and extract Ethiopia
-    python food_prices.py update     # download only if the catalog has a newer release, then build (daily job)
-    python food_prices.py build      # write app/data/food.js (needs data.js and flood.js built first)
-    python food_prices.py all
+# MAGIC %pip install geopandas
 
-Ported from Andrew Schroeder's repo (2026-11-17 version) with Databricks paths from config.py.
-"""
+# COMMAND ----------
+
+dbutils.widgets.dropdown("COMMAND", "update", ["update", "build", "download", "all"], "A. Command")
+COMMAND = dbutils.widgets.get("COMMAND").strip()
+print("Command:", COMMAND)
+
+# COMMAND ----------
+
 import json
 import re
 import sys
 import urllib.request
 import zipfile
-from pathlib import Path
+
+PIPELINE = "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline"
+if PIPELINE not in sys.path:
+    sys.path.insert(0, PIPELINE)
 
 import geopandas as gpd
 import numpy as np
@@ -29,7 +48,6 @@ import pandas as pd
 
 import config
 
-ROOT = Path(__file__).resolve().parent
 OUT = config.BUILD / "food"
 APP = config.APP
 SHP = config.SHP
@@ -47,6 +65,12 @@ COMMODITIES = [  # key in RTFP, label, unit
     ("livestock_sheep", "Sheep", "ETB / head"),
 ]
 
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Download
+
+# COMMAND ----------
 
 def latest_release():
     """Newest RTFP market file in the catalog: (download URL, file name). The catalog's resource API is
@@ -61,21 +85,6 @@ def latest_release():
         raise RuntimeError("no RTFP market file in the catalog's resource list (layout changed?)")
     best = max(mkt, key=lambda x: (x["filename"], x["resource_id"]))
     return f"https://microdata.worldbank.org/catalog/4483/download/{best['resource_id']}", best["filename"]
-
-
-def cmd_update():
-    """Download the newest release only if it differs from the one in build/food/release.txt."""
-    have = (OUT / "release.txt").read_text().strip() if (OUT / "release.txt").exists() else None
-    try:
-        url, name = latest_release()
-    except Exception as e:  # the catalog being down must not stop the daily build
-        print("could not check for a new RTFP release:", e, "| keeping", have)
-        return
-    if name == have and ETH.exists():
-        print("RTFP up to date:", have)
-        return
-    print("new RTFP release:", name, "(had", have, ")")
-    cmd_download(url)
 
 
 def cmd_download(url=None):
@@ -100,6 +109,27 @@ def cmd_download(url=None):
     (OUT / "release.txt").write_text(release)
     print("release", release, "|", len(df), "Ethiopia rows,", df["mkt_name"].nunique(), "markets")
 
+
+def cmd_update():
+    """Download the newest release only if it differs from the one in build/food/release.txt."""
+    have = (OUT / "release.txt").read_text().strip() if (OUT / "release.txt").exists() else None
+    try:
+        url, name = latest_release()
+    except Exception as e:  # the catalog being down must not stop the daily build
+        print("could not check for a new RTFP release:", e, "| keeping", have)
+        return
+    if name == have and ETH.exists():
+        print("RTFP up to date:", have)
+        return
+    print("new RTFP release:", name, "(had", have, ")")
+    cmd_download(url)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Build food.js
+
+# COMMAND ----------
 
 def rnd(v, dp=2):
     return None if v is None or not np.isfinite(v) else round(float(v), dp)
@@ -176,12 +206,16 @@ def cmd_build():
     print(len(markets), "markets |", months[0], "to", months[-1], "|", linked, "linked to a flood gauge |",
           f"{n_obs} market-months with a survey price ({100 * n_obs / (len(markets) * len(months)):.0f} %)")
 
+# COMMAND ----------
 
-if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "all"
-    if cmd in ("download", "all") and not (cmd == "all" and ETH.exists()):
-        cmd_download()
-    if cmd == "update":
-        cmd_update()
-    if cmd in ("build", "all", "update"):
-        cmd_build()
+# MAGIC %md
+# MAGIC ## Run
+
+# COMMAND ----------
+
+if COMMAND in ("download", "all") and not (COMMAND == "all" and ETH.exists()):
+    cmd_download()
+if COMMAND == "update":
+    cmd_update()
+if COMMAND in ("build", "all", "update"):
+    cmd_build()

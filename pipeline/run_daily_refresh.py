@@ -10,7 +10,7 @@
 # MAGIC 3. `heat_forecast`: pull the forecast days. One retry. Runs even if the download failed.
 # MAGIC 4. `build_map_data`: runs the notebook `build_map_data`. Runs even if the heat steps failed (it uses what is on disk).
 # MAGIC 5. `flood_gauges`: One retry after 2 minutes. Skipped if `build_map_data` failed.
-# MAGIC 6. `food_prices`: Skipped if `flood_gauges` failed.
+# MAGIC 6. `food_prices`: runs the notebook `food_prices` with `COMMAND` = `update` (downloads the newest World Bank release if there is one). Skipped if `flood_gauges` failed.
 # MAGIC 7. `rainfall` (CHIRPS, slow) and 8. `ethiomet`: soft. A failure prints a warning and keeps the previous file. Skipped if `food_prices` failed.
 # MAGIC
 # MAGIC **What it changes:** Files in the Volume under `build/` and `app/`. It does not touch GitHub. It calls HeatReady, Open-Meteo, World Bank, CHIRPS and EthioMet.
@@ -27,7 +27,7 @@
 # MAGIC | A | `DRY_RUN` | dropdown (`true`) | `true` = print the plan only; `false` = run |
 # MAGIC | B | `STAGES` | dropdown (`all`) | `all` for the whole pipeline, or one stage |
 # MAGIC
-# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-12*
+# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-17*
 
 # COMMAND ----------
 
@@ -67,7 +67,7 @@ STAGES = {
     "heat_forecast":  ("script",   "heat_api.py",     ["forecast"],        1, 600, False, ["heat_download"],  True),
     "build_map_data": ("notebook", "build_map_data",  [],                  0, 0,   False, ["heat_forecast"],  True),
     "flood_gauges":   ("script",   "flood_gauges.py", ["all"],             1, 120, False, ["build_map_data"], False),
-    "food_prices":    ("script",   "food_prices.py",  ["build"],           0, 0,   False, ["flood_gauges"],   False),
+    "food_prices":    ("notebook", "food_prices",     ["update"],          0, 0,   False, ["flood_gauges"],   False),
     "rainfall":       ("script",   "chirps.py",       ["all"],             0, 0,   True,  ["food_prices"],    False),
     "ethiomet":       ("script",   "ethiomet.py",     [],                  0, 0,   True,  ["food_prices"],    False),
 }
@@ -75,7 +75,7 @@ STAGES = {
 
 def run_once(kind, target, args):
     if kind == "notebook":
-        dbutils.notebook.run(f"{PIPELINE}/{target}", 3600)
+        dbutils.notebook.run(f"{PIPELINE}/{target}", 3600, {"COMMAND": args[0]} if args else {})
         return
     sys.argv = [target, *args]
     try:

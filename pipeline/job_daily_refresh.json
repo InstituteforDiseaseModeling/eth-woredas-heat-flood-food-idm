@@ -85,9 +85,9 @@
       "depends_on": [{"task_key": "flood_gauges"}],
       "environment_key": "pipeline_env",
       "timeout_seconds": 3600,
-      "spark_python_task": {
-        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/food_prices.py",
-        "parameters": ["update"]
+      "notebook_task": {
+        "notebook_path": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/food_prices",
+        "base_parameters": {"COMMAND": "update"}
       }
     },
     {

@@ -22,7 +22,7 @@ Unity Catalog Volume `idm_conflict_and_health.ethiopia_climate.heat_map_files`:
 ## Running it
 
 - **Whole pipeline:** notebook `pipeline/run_daily_refresh` (set `DRY_RUN` to `false`), or the Lakeflow job.
-- **One stage:** `pipeline/run_pipeline_stage`; the map build is the notebook `pipeline/build_map_data`.
+- **One stage:** `pipeline/run_pipeline_stage`; the map build and the food prices are notebooks of their own, `pipeline/build_map_data` and `pipeline/food_prices`.
 - **Checks:** `check_boundary`, `check_github_token`, `test_heatready_api`, `compare_with_andrew`.
 - **One-off setup:** `create_heat_projects` creates the six `eth-woreda-heat-N-idm` projects in HeatReady.
 
@@ -45,7 +45,7 @@ that GitHub's secret scanner flags; it was allowed once through the one-time web
 
 Every run refreshes: HeatReady heat and 6-day forecast, GloFAS river discharge and forecast (14 gauges), CHIRPS rainfall,
 the EthioMet bulletin, and the monthly woreda aggregation. Food prices: each run asks the World Bank catalog for the newest RTFP release and downloads it only if it changed
-(`food_prices.py update`); if the catalog cannot be reached, the current release is kept. Markets are then re-linked to the months.
+(the `food_prices` notebook, `COMMAND` = `update`); if the catalog cannot be reached, the current release is kept. Markets are then re-linked to the months.
 
 Updated by hand when a new version is adopted: the OCHA admin3 boundaries, LandScan and WorldPop population layers,
 HydroRIVERS/HydroBASINS (`app/data/rivers.js`), and the RP2/RP5 flood thresholds (fitted to 1984-2025 annual peaks).

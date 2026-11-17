@@ -12,7 +12,7 @@
 # MAGIC 1. `setup_site`: copy `index.html`, `app.js`, `style.css`, `.nojekyll` into the Volume's `app/`. Needs the folder `local_scripts/app`.
 # MAGIC 2. (`build_map_data` is a notebook of its own: run the notebook `build_map_data` directly at this point.)
 # MAGIC 3. `flood_gauges`: GloFAS river discharge for the 14 gauges -> `app/data/flood.js`. Needs internet access to Open-Meteo.
-# MAGIC 4. `food_prices`: World Bank food prices linked to the new months -> `app/data/food.js`.
+# MAGIC 4. (`food_prices` is a notebook of its own, like `build_map_data`: run the notebook `food_prices` directly, with `COMMAND` = `update`. It writes `app/data/food.js`.)
 # MAGIC 5. `rainfall`: CHIRPS rainfall -> `app/data/rain.js`. Needs `app/data/rivers.js` and internet access to CHC UCSB. Slow.
 # MAGIC 6. `ethiomet`: latest EthioMet bulletin -> `app/data/ethiomet.js`. Needs internet access to the EthioMet site.
 # MAGIC
@@ -26,7 +26,7 @@
 # MAGIC |---|---|---|---|
 # MAGIC | A | `STAGE` | dropdown (`setup_site`) | the stage to run (list above) |
 # MAGIC
-# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-12*
+# MAGIC *Owner: IDM data management · Questions: jeremy.cooper@gatesfoundation.org · Last updated: 2026-11-17*
 
 # COMMAND ----------
 
@@ -34,7 +34,6 @@ STAGES = {
     # stage: (script, arguments) exactly as in job_daily_refresh.json
     "setup_site":     ("setup_site.py", []),
     "flood_gauges":   ("flood_gauges.py", ["all"]),
-    "food_prices":    ("food_prices.py", ["build"]),
     "rainfall":       ("chirps.py", ["all"]),
     "ethiomet":       ("ethiomet.py", []),
 }
