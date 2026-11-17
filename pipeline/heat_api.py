@@ -24,7 +24,7 @@ from pathlib import Path
 import requests
 
 import config
-ROOT = Path(__file__).resolve().parent
+ROOT = config.PIPELINE_DIR
 BUILD = config.BUILD
 PROJ = BUILD / "projects"
 RAW = BUILD / "raw"

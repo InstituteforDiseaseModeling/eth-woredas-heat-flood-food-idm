@@ -28,7 +28,7 @@ import pandas as pd
 from shapely.geometry import Point
 
 import config
-ROOT = Path(__file__).resolve().parent
+ROOT = config.PIPELINE_DIR
 OUT = config.BUILD / "flood"
 APP = config.APP
 SHP = config.SHP

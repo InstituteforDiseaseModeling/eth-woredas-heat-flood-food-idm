@@ -9,12 +9,13 @@ These scripts must not need secrets: they run as a subprocess without the notebo
 """
 import subprocess
 import sys
-from pathlib import Path
 
-here = Path(__file__).resolve().parent
+import config
+
+here = config.PIPELINE_DIR
 script, *args = sys.argv[1:]
 result = subprocess.run([sys.executable, str(here / script), *args], cwd=here)
 if result.returncode:
     print(f"WARNING: {script} {' '.join(args)} exited with code {result.returncode}; "
           f"keeping the previous output.", flush=True)
-sys.exit(0)
+# No sys.exit(0): job tasks treat SystemExit as a failure, so just end the script.

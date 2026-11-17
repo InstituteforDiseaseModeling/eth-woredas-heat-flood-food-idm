@@ -12,7 +12,7 @@ from pathlib import Path
 
 import config
 
-SRC = Path(__file__).resolve().parent.parent / "app"
+SRC = config.PIPELINE_DIR.parent / "app"
 FILES = ["index.html", "app.js", "style.css", ".nojekyll"]
 
 config.APP.mkdir(parents=True, exist_ok=True)

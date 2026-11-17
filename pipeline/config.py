@@ -23,6 +23,8 @@ Credentials (never stored in files)
 import os
 from pathlib import Path
 
+# This folder. Scripts run as Lakeflow job tasks have no __file__ of their own, so they use this instead.
+PIPELINE_DIR = Path(__file__).resolve().parent
 BASE = Path(os.environ.get("ETH_BASE", "/Volumes/idm_conflict_and_health/ethiopia_climate/heat_map_files"))
 BUILD = BASE / "build"
 APP = BASE / "app"

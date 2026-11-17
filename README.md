@@ -68,6 +68,7 @@ These features follow Andrew Schroeder's repo as of 2026-11-17; his README has t
 ## Conventions
 
 - Code stays as plain `.py` scripts. A script becomes a notebook only when that gives something concrete: widgets, printed output, or a `%pip` install (`build_map_data`, `food_prices`).
+- Scripts that run directly as job tasks (`setup_site.py`, `heat_api.py`, `flood_gauges.py`, `soft_run.py`) must not use `__file__`: a job runs them without it. Use `config.PIPELINE_DIR` for the pipeline folder.
 - `chirps.py` and `ethiomet.py` must stay scripts: `soft_run.py` runs them as subprocesses so a failure warns instead of blocking `publish`.
 - The stage scripts and `config.py` stay flat in `pipeline/` so each file maps to one file in Andrew's repo. Our own changes there are the Databricks paths and secrets (`config.py`), the `-idm` project ids (`heat_api.py`), and `keep="last"` de-duplication (`build_map_data`).
 
