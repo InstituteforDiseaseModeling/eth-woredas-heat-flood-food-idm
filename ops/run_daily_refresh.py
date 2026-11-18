@@ -2,10 +2,11 @@
 # MAGIC %md
 # MAGIC # Run the whole daily refresh from a notebook (stand-in for the job)
 # MAGIC
-# MAGIC **Purpose:** Run every stage of the Ethiopia woreda map pipeline in order, with the same rules as `job_daily_refresh.json`, so the full pipeline can be tested before the Lakeflow job exists. It does not publish to GitHub (the publish step is not built yet).
+# MAGIC **Purpose:** Run every stage of the Ethiopia woreda map pipeline in order, with the same rules as `job_daily_refresh.json`, so the full pipeline can be tested before the Lakeflow job exists. It does not publish to GitHub and does not write the Delta tables (the job's `publish` and `delta_tables` tasks do that).
 # MAGIC
 # MAGIC **Stages and rules (same as the job):**
 # MAGIC 1. `setup_site`: copy the site files into the Volume's `app/`.
+# MAGIC 1b. `oni`: soft. Download NOAA's Oceanic Nino Index (El Nino flags); a failure keeps the previous file.
 # MAGIC 2. `heat_download`: re-pull the two latest months from HeatReady. One retry after 10 minutes.
 # MAGIC 3. `heat_forecast`: pull the forecast days. One retry. Runs even if the download failed.
 # MAGIC 4. `build_map_data`: runs the notebook `build_map_data`. Runs even if the heat steps failed (it uses what is on disk).
@@ -35,7 +36,7 @@
 
 # COMMAND ----------
 
-ALL = ["setup_site", "heat_download", "heat_forecast", "build_map_data", "flood_gauges", "food_prices", "rainfall", "ethiomet"]
+ALL = ["setup_site", "oni", "heat_download", "heat_forecast", "build_map_data", "flood_gauges", "food_prices", "rainfall", "ethiomet"]
 dbutils.widgets.dropdown("DRY_RUN", "true", ["true", "false"], "A. Dry run (true = plan only)")
 dbutils.widgets.dropdown("STAGES", "all", ["all"] + ALL, "B. Stage (all = whole pipeline)")
 choice = dbutils.widgets.get("STAGES").strip()
@@ -63,6 +64,7 @@ import config
 # stage: (kind, target, args, retries, retry_wait_s, soft, depends_on, run_even_if_dep_failed)
 STAGES = {
     "setup_site":     ("script",   "setup_site.py",   [],                  0, 0,   False, [],                False),
+    "oni":            ("script",   "oni.py",         [],                  0, 0,   True,  ["setup_site"],     False),
     "heat_download":  ("script",   "heat_api.py",     ["download", "final"], 1, 600, False, ["setup_site"],     False),
     "heat_forecast":  ("script",   "heat_api.py",     ["forecast"],        1, 600, False, ["heat_download"],  True),
     "build_map_data": ("notebook", "build_map_data",  [],                  0, 0,   False, ["heat_forecast"],  True),
@@ -145,4 +147,4 @@ for name in ALL:
 required_failed = [n for n, (s, _, _) in results.items() if s == "FAILED"]
 if required_failed:
     raise RuntimeError(f"Required stage(s) failed: {', '.join(required_failed)}")
-print("\nDone. Nothing was published (no publish step yet).")
+print("\nDone. Nothing was published and no Delta tables were written (run publish_pages and write_delta_tables for that).")

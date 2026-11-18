@@ -3,9 +3,9 @@
   "max_concurrent_runs": 1,
   "timeout_seconds": 14400,
   "schedule": {
-    "quartz_cron_expression": "0 30 7 * * ?",
+    "quartz_cron_expression": "0 30 7 1/2 * ?",
     "timezone_id": "UTC",
-    "pause_status": "PAUSED"
+    "pause_status": "UNPAUSED"
   },
   "email_notifications": {
     "on_failure": ["jeremy.cooper@gatesfoundation.org"]
@@ -15,7 +15,7 @@
       "environment_key": "pipeline_env",
       "spec": {
         "environment_version": "6",
-        "dependencies": ["requests", "pandas", "numpy", "scipy", "geopandas", "shapely", "rasterio"]
+        "dependencies": ["requests==2.32.5", "pandas==2.3.3", "numpy==2.3.4", "scipy==1.16.3", "geopandas==1.2.0", "shapely==2.2.0", "rasterio==1.5.2"]
       }
     }
   ],
@@ -26,6 +26,17 @@
       "environment_key": "pipeline_env",
       "spark_python_task": {
         "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/setup_site.py"
+      }
+    },
+    {
+      "task_key": "oni",
+      "description": "NOAA CPC Oceanic Nino Index -> build/oni.ascii.txt (El Nino flags). Soft: a failure keeps the previous file.",
+      "depends_on": [{"task_key": "setup_site"}],
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 900,
+      "spark_python_task": {
+        "python_file": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/soft_run.py",
+        "parameters": ["oni.py"]
       }
     },
     {
@@ -58,7 +69,7 @@
     {
       "task_key": "build_map_data",
       "description": "Aggregate to monthly woreda metrics and write app/data/data.js, geo.js and app/config.js.",
-      "depends_on": [{"task_key": "heat_download"}, {"task_key": "heat_forecast"}],
+      "depends_on": [{"task_key": "heat_download"}, {"task_key": "heat_forecast"}, {"task_key": "oni"}],
       "run_if": "ALL_DONE",
       "environment_key": "pipeline_env",
       "timeout_seconds": 3600,
@@ -113,6 +124,23 @@
       }
     },
     {
+      "task_key": "delta_tables",
+      "description": "Write the imports and the monthly metrics to Delta tables in ethiopia_climate (write_delta_tables notebook). A table that fails only warns, so it does not block publish.",
+      "depends_on": [
+        {"task_key": "build_map_data"},
+        {"task_key": "flood_gauges"},
+        {"task_key": "food_prices"},
+        {"task_key": "rainfall"},
+        {"task_key": "ethiomet_bulletin"}
+      ],
+      "environment_key": "pipeline_env",
+      "timeout_seconds": 3600,
+      "notebook_task": {
+        "notebook_path": "/Workspace/IDM_repos/idm_conflict_and_health/ethiopia_climate/eth-woredas-heat-flood-food-idm/pipeline/write_delta_tables",
+        "base_parameters": {"DRY_RUN": "false", "TABLES": "all"}
+      }
+    },
+    {
       "task_key": "publish",
       "description": "Publish app/ to the gh-pages branch of the publish repo (publish_pages notebook). Runs only if every earlier stage succeeded; rainfall and ethiomet only warn, so they never block it.",
       "depends_on": [
@@ -120,7 +148,8 @@
         {"task_key": "flood_gauges"},
         {"task_key": "food_prices"},
         {"task_key": "rainfall"},
-        {"task_key": "ethiomet_bulletin"}
+        {"task_key": "ethiomet_bulletin"},
+        {"task_key": "delta_tables"}
       ],
       "environment_key": "pipeline_env",
       "timeout_seconds": 1800,

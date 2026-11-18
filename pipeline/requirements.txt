@@ -1,9 +1,10 @@
-# Python packages imported by the pipeline scripts (ethiomet.py uses only the standard library).
-# Versions are not pinned yet: run one successful job, then pin with `pip freeze` for these packages.
-requests
-pandas
-numpy
-scipy
-geopandas
-shapely
-rasterio
+# Python packages imported by the pipeline scripts (ethiomet.py and oni.py use only the standard library).
+# Pinned to the versions of the first successful job run (2026-11-17, serverless environment version 6).
+# The same pins are in jobs/job_daily_refresh.json. To upgrade: change both, run the job once by hand.
+requests==2.32.5
+pandas==2.3.3
+numpy==2.3.4
+scipy==1.16.3
+geopandas==1.2.0
+shapely==2.2.0
+rasterio==1.5.2

@@ -1,6 +1,6 @@
 """Run another pipeline script; if it fails, log a warning and exit 0 so the job carries on.
 
-Used for the optional steps (rainfall, EthioMet bulletin). Like refresh_daily.ps1 did, a failure
+Used for the optional steps (ONI index, rainfall, EthioMet bulletin). Like refresh_daily.ps1 did, a failure
 keeps the previous output file instead of blocking the publish step. The failure is visible in
 this task's log.
 

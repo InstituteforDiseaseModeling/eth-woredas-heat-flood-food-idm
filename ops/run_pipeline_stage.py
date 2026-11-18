@@ -15,6 +15,7 @@
 # MAGIC 4. (`food_prices` is a notebook of its own, like `build_map_data`: run the notebook `food_prices` directly, with `COMMAND` = `update`. It writes `app/data/food.js`.)
 # MAGIC 5. `rainfall`: CHIRPS rainfall -> `app/data/rain.js`. Needs `app/data/rivers.js` and internet access to CHC UCSB. Slow.
 # MAGIC 6. `ethiomet`: latest EthioMet bulletin -> `app/data/ethiomet.js`. Needs internet access to the EthioMet site.
+# MAGIC 7. `oni`: NOAA Oceanic Nino Index -> `build/oni.ascii.txt` (El Nino flags). Needs internet access to NOAA CPC; run before `build_map_data`.
 # MAGIC
 # MAGIC **What it changes:** Only files under the Volume's `app/` (and `build/` caches the scripts use). It does not publish anything and does not touch HeatReady.
 # MAGIC
@@ -36,6 +37,7 @@ STAGES = {
     "flood_gauges":   ("flood_gauges.py", ["all"]),
     "rainfall":       ("chirps.py", ["all"]),
     "ethiomet":       ("ethiomet.py", []),
+    "oni":            ("oni.py", []),
 }
 dbutils.widgets.dropdown("STAGE", "setup_site", list(STAGES), "A. Stage")
 STAGE = dbutils.widgets.get("STAGE").strip()
